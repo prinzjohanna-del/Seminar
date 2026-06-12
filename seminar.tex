@@ -1,0 +1,255 @@
+\documentclass[12pt, a4paper]{article}
+
+% --- Pakete ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[ngerman]{babel}
+\usepackage{csquotes}
+\usepackage{microtype}
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+
+\usepackage{amsmath}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks = true,
+    linkcolor  = black,
+    citecolor  = black,
+    urlcolor   = blue,
+}
+
+% Literatur
+\usepackage[backend=biber, style=authoryear, sorting=nyt]{biblatex}
+\addbibresource{literatur.bib}
+
+% --- Metadaten ---
+\title{%
+  \textbf{Nachhaltiges Prescriptive Process Monitoring}\\[0.4em]
+  \large Ein graphbasierter Ansatz zur ökologischen Prozesssteuerung
+  mittels erweiterter Eventlogs und dem PIXIE-Algorithmus
+}
+\author{Johanna Prinz}
+\date{\today}
+
+% ============================================================
+\begin{document}
+\maketitle
+\tableofcontents
+\newpage
+
+% ------------------------------------------------------------
+\section{Einleitung}
+\label{sec:einleitung}
+
+Klassische Prozess-Eventlogs erfassen Aktivitäten, Zeitstempel und Kosten~--
+ökologische Auswirkungen bleiben dabei unsichtbar.
+Klimaziele und regulatorische Anforderungen erfordern jedoch,
+dass Unternehmen Nachhaltigkeitskennzahlen nicht erst \emph{nach}
+Prozessabschluss in Post-Mortem-Analysen auswerten,
+sondern \emph{während} der Prozessausführung aktiv steuern können.
+
+Die vorliegende Arbeit schließt diese Forschungslücke,
+indem sie erweiterte Eventlogs, Predictive Monitoring
+und einen graphbasierten Empfehlungsalgorithmus zu einem
+einheitlichen \emph{nachhaltigen Prescriptive-Monitoring-Ansatz} verbindet.
+
+% ------------------------------------------------------------
+\section{Erweiterung klassischer Eventlogs um Nachhaltigkeitsattribute}
+\label{sec:eventlog}
+
+Ein klassisches Eventlog enthält je Ereignis mindestens:
+\begin{itemize}
+  \item \texttt{case\_id} -- Prozessinstanz,
+  \item \texttt{activity} -- ausgeführte Aktivität,
+  \item \texttt{timestamp} -- Ausführungszeitpunkt,
+  \item \texttt{cost} -- anfallende Kosten.
+\end{itemize}
+
+Im vorgeschlagenen Ansatz wird jedes Ereignis um
+\emph{quantifizierbare Nachhaltigkeitswerte} ergänzt:
+
+\begin{equation}
+  e = \bigl(\text{case\_id},\;\text{activity},\;\text{timestamp},\;
+            \underbrace{\text{cost},\;\text{co}_2,\;\text{energy}}_{\text{neu}}\bigr)
+\end{equation}
+
+\noindent
+Dabei bezeichnen:
+\begin{itemize}
+  \item $\text{co}_2$ -- \COO-Emissionen der Aktivität in~kg,
+  \item $\text{energy}$ -- Energieverbrauch in~kWh,
+  \item $\text{cost}$ -- monetäre Kosten in~\euro{}.
+\end{itemize}
+
+Ökologische Faktoren sind damit direkt im Eventlog
+als messbare Attribute verankert und stehen für eine
+Echtzeit-Analyse zur Verfügung.
+
+% ------------------------------------------------------------
+\section{Graphmodellierung des laufenden Prozesses}
+\label{sec:graph}
+
+Der laufende Prozess wird als \textbf{bipartiter gerichteter Graph}
+$G = (V, E)$ modelliert:
+\begin{itemize}
+  \item Linke Knotenmenge~$S$: aktuelle Prozesszustände (beobachtete Aktivitäten),
+  \item Rechte Knotenmenge~$A$: mögliche nächste Aktivitäten,
+  \item Kante $(s, a) \in E$: historisch beobachteter Übergang mit den Attributen
+        Häufigkeit~$w$, $\overline{\text{co}_2}$, $\overline{\text{cost}}$,
+        $\overline{\text{energy}}$ (jeweilige Mittelwerte aus dem Eventlog).
+\end{itemize}
+
+Aus dem historischen Eventlog wird der Graph automatisch aufgebaut:
+Für jede Prozessinstanz werden aufeinanderfolgende Aktivitäten
+als gerichtete Kante eingetragen und deren Attributwerte aggregiert.
+
+% ------------------------------------------------------------
+\section{PIXIE-Algorithmus: Biased Random Walk zur Pfadbewertung}
+\label{sec:pixie}
+
+\subsection{Grundprinzip}
+
+Der PIXIE-Algorithmus~\parencite{pixie2018} traversiert den Prozessgraphen
+mittels eines \emph{biased Random Walk}:
+Ausgehend vom aktuellen Prozesszustand~$s$ wird in jedem Schritt
+ein Nachfolger~$a$ probabilistisch gewählt,
+wobei die Übergangswahrscheinlichkeit durch eine
+\textbf{multidimensionale Bewertungsfunktion} gesteuert wird.
+
+\subsection{Bewertungsfunktion}
+
+Für jeden möglichen Übergang $(s, a)$ wird ein Score berechnet:
+
+\begin{equation}
+  \label{eq:score}
+  \text{score}(s,a)
+    = \alpha \cdot \hat{w}(s,a)
+    + \beta  \cdot \bigl(1 - \hat{\text{cost}}(s,a)\bigr)
+    + \gamma \cdot \bigl(1 - \widehat{\text{co}_2}(s,a)\bigr)
+    + \delta \cdot \bigl(1 - \hat{\text{energy}}(s,a)\bigr)
+\end{equation}
+
+\noindent
+wobei $\hat{\cdot}$ eine Min-Max-Normalisierung auf $[0,1]$ bezeichnet
+und die Parameter $\alpha, \beta, \gamma, \delta \geq 0$
+die Unternehmensprioritäten widerspiegeln:
+
+\begin{table}[h]
+  \centering
+  \caption{Bedeutung der Gewichtungsparameter}
+  \label{tab:parameter}
+  \begin{tabular}{clll}
+    \toprule
+    Parameter & Dimension & Hoher Wert bedeutet & Beispielszenario \\
+    \midrule
+    $\alpha$ & Historische Häufigkeit  & Bewährte Pfade bevorzugen & Produktionsleiter \\
+    $\beta$  & Niedrige Kosten         & Kostenoptimierung          & Controller \\
+    $\gamma$ & Niedriger \COO-Ausstoß  & Klimaschutz                & Nachhaltigkeitsbeauftragter \\
+    $\delta$ & Niedriger Energiebedarf & Energieeffizienz           & Energiemanager \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Übergangswahrscheinlichkeiten}
+
+Die Wahrscheinlichkeit, von Zustand~$s$ zur Aktivität~$a$ überzugehen, beträgt:
+
+\begin{equation}
+  p(a \mid s) = \frac{\text{score}(s,a)}{\sum_{a' \in \mathcal{N}(s)} \text{score}(s,a')}
+\end{equation}
+
+Mit Restart-Wahrscheinlichkeit~$r$ kehrt der Walk
+bei jedem Schritt mit Wahrscheinlichkeit~$r$ zum Startknoten zurück,
+was den Einfluss weit entfernter Knoten dämpft.
+
+% ------------------------------------------------------------
+\section{Prescriptive Monitoring: Proaktive Handlungsempfehlung}
+\label{sec:prescriptive}
+
+Nach $n$ Schritten des Random Walk wird die Besuchshäufigkeit
+jedes Zielknotens ausgewertet.
+Die Aktivität mit der höchsten Besuchsrate erhält die
+\textbf{Empfehlung als nächster Prozessschritt}:
+
+\begin{equation}
+  a^* = \arg\max_{a} \;\text{visits}(a)
+\end{equation}
+
+Dieses Prescriptive Monitoring wirkt \emph{proaktiv}:
+Es erkennt frühzeitig, ob ein laufender Prozess
+auf einen ökologisch ungünstigen Pfad zusteuert --
+noch bevor der Schaden eingetreten ist.
+
+\subsection{Trade-off-Transparenz}
+
+Der Algorithmus macht Zielkonflikte explizit sichtbar.
+Durch systematische Variation von~$\gamma$ lässt sich darstellen:
+
+\begin{quote}
+  \emph{,,Pfad~B dauert 15\,\% länger, spart aber 40\,\% \COO~gegenüber Pfad~A.''}
+\end{quote}
+
+Entscheidungsträger erhalten damit eine transparente Grundlage,
+um Schnelligkeit, Wirtschaftlichkeit und Ökologie
+entsprechend der aktuellen Unternehmensstrategie abzuwägen.
+
+% ------------------------------------------------------------
+\section{Prototypische Implementierung}
+\label{sec:implementierung}
+
+Der Ansatz wurde prototypisch in Python implementiert.
+Tabelle~\ref{tab:szenarien} zeigt die Empfehlungen
+für drei Personas bei identischem Startknoten (\emph{Qualitätskontrolle}).
+
+\begin{table}[h]
+  \centering
+  \caption{Szenariobasierte Empfehlungen des PIXIE-Algorithmus}
+  \label{tab:szenarien}
+  \begin{tabular}{lcccc}
+    \toprule
+    Persona & $\alpha$ & $\beta$ & $\gamma$ & Empfehlung \\
+    \midrule
+    Produktionsleiter (schnell)   & 0{,}6 & 0{,}2 & 0{,}1 & Lackieren Ofen \\
+    Controller (kostenoptimiert)  & 0{,}2 & 0{,}6 & 0{,}1 & Lackieren UV-Aushärtung \\
+    Nachhaltigkeitsbeauftragter   & 0{,}1 & 0{,}1 & 0{,}6 & Lackieren UV-Aushärtung \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% ------------------------------------------------------------
+\section{Forschungsbeitrag und Abgrenzung}
+\label{sec:beitrag}
+
+Die Arbeit schließt eine bestehende Forschungslücke:
+Erstmals werden drei bisher getrennte Konzepte zu einem
+kohärenten Ansatz kombiniert:
+
+\begin{enumerate}
+  \item \textbf{Erweiterte Eventlogs} mit quantifizierbaren Nachhaltigkeitsattributen,
+  \item \textbf{Predictive Monitoring} zur Früherkennung ökologisch ungünstiger Pfade,
+  \item \textbf{Graphbasierter Empfehlungsalgorithmus} (PIXIE)
+        für eine flexible, priorisierungsgesteuerte Handlungsempfehlung.
+\end{enumerate}
+
+Im Gegensatz zu klassischen Post-Mortem-Analysen
+ermöglicht der Ansatz eine \emph{Echtzeit-Intervention}
+während der Prozessausführung.
+
+% ------------------------------------------------------------
+\section{Fazit}
+\label{sec:fazit}
+
+Der vorgestellte Ansatz verbindet Process Mining,
+nachhaltige Unternehmensführung und algorithmisches Empfehlungsmanagement
+zu einem praxistauglichen Werkzeug.
+Die flexible Gewichtungsfunktion erlaubt es,
+denselben Algorithmus für unterschiedliche Unternehmensstrategien einzusetzen --
+von maximaler Kosteneffizienz bis zur klimaneutralen Produktion.
+
+% ------------------------------------------------------------
+\printbibliography[heading=bibintoc]
+
+\end{document}
